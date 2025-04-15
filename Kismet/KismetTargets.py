@@ -110,7 +110,7 @@ def sort_and_configure_devices(devices_list):
                 bt_macs.append(mac)
         
         # Handle Wi-Fi Clients and their probed SSIDs
-        elif dev_type in ["Wi-Fi Client", "Wi-Fi WDS", "Wi-Fi Ad-Hoc"]:
+        elif dev_type in ["Wi-Fi Client","Wi-Fi Device","Wi-Fi Ad-Hoc","Wi-Fi Bridged"]:
             if mac and device.get("kismet.device.base.manuf") != "Unknown":
                 client_macs.append(mac)
 
@@ -127,7 +127,7 @@ def sort_and_configure_devices(devices_list):
                 pass
         
         # Handle Wi-Fi APs and their advertised SSIDs
-        elif dev_type in ["Wi-Fi AP","Wi-Fi WDS AP"]:
+        elif dev_type in ["Wi-Fi AP","Wi-Fi WDS AP","Wi-Fi WDS"]:
             if mac:
                 ap_macs.append(mac)
 
