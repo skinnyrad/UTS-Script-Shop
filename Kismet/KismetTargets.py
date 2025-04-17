@@ -38,7 +38,7 @@ def extract_devices_json(conn):
         print("Error querying 'devices' table:", e)
         return []
 
-def generate_target_alerts(bt_macs, client_macs, ap_macs, sensor_macs, ssid_list):
+def generate_target_alerts(btedr_macs, btle_macs, client_macs, ap_macs, sensor_macs, ssid_list):
     """Generate Kismet target alert configuration from extracted data"""
     config_dirs = ["/etc/kismet", "/usr/local/etc"]
     target_config = "kismet_target_alerts.conf"
@@ -66,7 +66,8 @@ def generate_target_alerts(bt_macs, client_macs, ap_macs, sensor_macs, ssid_list
                 
                 # Write MAC alerts
                 mac_sources = {
-                    'bt': bt_macs,
+                    'btedr': btedr_macs,
+                    'btle': btle_macs,
                     'client': client_macs,
                     'ap': ap_macs,
                     'sensor': sensor_macs
@@ -86,9 +87,9 @@ def generate_target_alerts(bt_macs, client_macs, ap_macs, sensor_macs, ssid_list
         print("\033[31mError: No valid Kismet configuration directories found\033[0m")
         sys.exit(1)
 
-def sort_and_configure_devices(devices_list):
-    """Process devices and configure Kismet alerts directly"""
-    bt_macs = []
+def sort_devices_to_files(devices_list):
+    btedr_macs = []
+    btle_macs = []
     client_macs = []
     ssid_list = []
     ap_macs = []
@@ -101,16 +102,16 @@ def sort_and_configure_devices(devices_list):
         # Handle Bluetooth devices
         if dev_type == "BR/EDR":
             if mac:
-                bt_macs.append(mac)
+                btedr_macs.append(mac)
 
         # Handle Bluetooth Low Energy devices
         if dev_type == "BTLE":
             if mac and (device.get("kismet.device.base.macaddr") != device.get("kismet.device.base.commonname") or 
                         device.get("kismet.device.base.manuf") != "Unknown"):
-                bt_macs.append(mac)
+                btle_macs.append(mac)
         
         # Handle Wi-Fi Clients and their probed SSIDs
-        elif dev_type in ["Wi-Fi Client","Wi-Fi Device","Wi-Fi Ad-Hoc","Wi-Fi Bridged"]:
+        elif dev_type in ["Wi-Fi Client", "Wi-Fi Ad-Hoc","Wi-Fi Device","Wi-Fi Bridged"]:
             if mac and device.get("kismet.device.base.manuf") != "Unknown":
                 client_macs.append(mac)
 
@@ -127,7 +128,7 @@ def sort_and_configure_devices(devices_list):
                 pass
         
         # Handle Wi-Fi APs and their advertised SSIDs
-        elif dev_type in ["Wi-Fi AP","Wi-Fi WDS AP","Wi-Fi WDS"]:
+        elif dev_type in ["Wi-Fi AP","Wi-Fi WDS AP","WiFi WDS"]:
             if mac:
                 ap_macs.append(mac)
 
@@ -147,7 +148,7 @@ def sort_and_configure_devices(devices_list):
         elif dev_type == "Sensor" and mac:
             sensor_macs.append(mac)
     # Generate alerts directly without intermediate files
-    generate_target_alerts(bt_macs, client_macs, ap_macs, sensor_macs, ssid_list)
+    generate_target_alerts(btedr_macs, btle_macs, client_macs, ap_macs, sensor_macs, ssid_list)
 
 def check_privileges():
     """Check and escalate privileges if needed"""

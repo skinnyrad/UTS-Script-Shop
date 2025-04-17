@@ -37,7 +37,8 @@ def extract_devices_json(conn):
         return []
     
 def sort_devices_to_files(devices_list):
-    bt_macs = []
+    btedr_macs = []
+    btle_macs = []
     client_macs = []
     ssid_list = []
     ap_macs = []
@@ -50,13 +51,13 @@ def sort_devices_to_files(devices_list):
         # Handle Bluetooth devices
         if dev_type == "BR/EDR":
             if mac:
-                bt_macs.append(mac)
+                btedr_macs.append(mac)
 
         # Handle Bluetooth Low Energy devices
         if dev_type == "BTLE":
             if mac and (device.get("kismet.device.base.macaddr") != device.get("kismet.device.base.commonname") or 
                         device.get("kismet.device.base.manuf") != "Unknown"):
-                bt_macs.append(mac)
+                btle_macs.append(mac)
         
         # Handle Wi-Fi Clients and their probed SSIDs
         elif dev_type in ["Wi-Fi Client", "Wi-Fi Ad-Hoc","Wi-Fi Device","Wi-Fi Bridged"]:
@@ -97,8 +98,11 @@ def sort_devices_to_files(devices_list):
             sensor_macs.append(mac)
 
     # Write files with unique entries
-    with open("BT.txt", "w") as f:
-        f.write("\n".join(set(bt_macs)))
+    with open("BTEDR.txt", "w") as f:
+        f.write("\n".join(set(btedr_macs)))
+
+    with open("BTLE.txt", "w") as f:
+        f.write("\n".join(set(btle_macs)))
     
     with open("CLIENT.txt", "w") as f:
         f.write("\n".join(set(client_macs)))

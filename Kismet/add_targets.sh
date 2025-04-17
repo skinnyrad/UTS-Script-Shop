@@ -8,7 +8,7 @@
 
 # Potential config directories in priority order
 CONFIG_DIRS="/etc/kismet /usr/local/etc"
-MAC_SOURCES="AP.txt BT.txt CLIENT.txt SENSORS.txt"
+MAC_SOURCES="AP.txt BTEDR.txt BTLE.txt CLIENT.txt SENSORS.txt"
 SSID_FILE="SSID.txt"
 
 processed_dirs=0
