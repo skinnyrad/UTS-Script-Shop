@@ -9,7 +9,7 @@
 # Potential config directories in priority order
 CONFIG_DIRS="/etc/kismet /usr/local/etc"
 MAC_SOURCES="AP.txt BTEDR.txt BTLE.txt CLIENT.txt SENSORS.txt"
-SSID_FILE="SSID.txt"
+SSID_SOURCES="SSID.txt ProbedSSID.txt"
 
 processed_dirs=0
 
@@ -28,16 +28,18 @@ for CONFIG_DIR in $CONFIG_DIRS; do
         # Create fresh target file
         true > "$TARGET_CONF"
 
-        # Process SSIDs
-        if [ -f "$SSID_FILE" ]; then
-            while IFS= read -r ssid || [ -n "$ssid" ]; do
-                cleaned_ssid=$(echo "$ssid" | xargs)
-                [ -z "$cleaned_ssid" ] && continue
-                echo "ssidcanary=\"${cleaned_ssid}\":ssid=\"${cleaned_ssid}\"" >> "$TARGET_CONF"
-            done < "$SSID_FILE"
-        else
-            echo "\033[33mWarning: SSID.txt not found - skipping SSID alerts\033[0m"
-        fi
+        # Process SSIDs from all sources
+        for SSID_FILE in $SSID_SOURCES; do
+            if [ -f "$SSID_FILE" ]; then
+                while IFS= read -r ssid || [ -n "$ssid" ]; do
+                    cleaned_ssid=$(echo "$ssid" | xargs)
+                    [ -z "$cleaned_ssid" ] && continue
+                    echo "ssidcanary=\"${cleaned_ssid}\":ssid=\"${cleaned_ssid}\"" >> "$TARGET_CONF"
+                done < "$SSID_FILE"
+            else
+                echo "\033[33mWarning: $SSID_FILE not found - skipping SSID alerts\033[0m"
+            fi
+        done
 
         # Process MAC addresses from all sources
         for source in $MAC_SOURCES; do

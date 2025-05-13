@@ -40,7 +40,8 @@ def sort_devices_to_files(devices_list):
     btedr_macs = []
     btle_macs = []
     client_macs = []
-    ssid_list = []
+    advertised_ssids = []
+    probed_ssids = []
     ap_macs = []
     sensor_macs = []
 
@@ -72,7 +73,7 @@ def sort_devices_to_files(devices_list):
                     ssid = map.get("dot11.probedssid.ssid")
                     if ssid != "":
                         ssids.append(ssid)
-                ssid_list.extend(ssids)  # Store unique SSIDs for later use
+                probed_ssids.extend(ssids)  # Store unique SSIDs for later use
             except:
                 pass
         
@@ -89,7 +90,7 @@ def sort_devices_to_files(devices_list):
                     ssid = map.get("dot11.advertisedssid.ssid")
                     if ssid:
                         ssids.append(ssid)
-                ssid_list.extend(ssids)
+                advertised_ssids.extend(ssids)
             except:
                 pass
             
@@ -108,7 +109,10 @@ def sort_devices_to_files(devices_list):
         f.write("\n".join(set(client_macs)))
     
     with open("SSID.txt", "w") as f:
-        f.write("\n".join(set(ssid_list)))
+        f.write("\n".join(set(advertised_ssids)))
+
+    with open("ProbedSSID.txt", "w") as f:
+        f.write("\n".join(set(probed_ssids)))
 
     with open("AP.txt", "w") as f:
         f.write("\n".join(set(ap_macs))) 
