@@ -9,8 +9,8 @@ The Script Shop™ is your one stop shop to find all the scripts you desire.
 
 Kismet Parse is a tool for extracting captured device information from a kismet database. The tool reads over the database and generates 7 sorted output files:
 
-- **BTEDR.txt** : A list of targetable Bluetooth Classic Addresses.
-- **BTLE** A list of targetable BTLE Addresses that have a specified name or manufacturer.
+- **BTEDR.txt**: A list of targetable Bluetooth Classic Addresses.
+- **BTLE.txt**: A list of targetable BTLE Addresses that have a specified name or manufacturer.
 - **CLIENT.txt**: A list of all the WiFi Client MAC addresses that are not random in nature.
 - **ProbedSSID.txt**: A list of all SSIDs probed for by a client device.
 - **SSID.txt**: A list of all SSIDs prodcued from a beacon frame.
