@@ -7,7 +7,7 @@ The Script Shop™ is your one stop shop to find all the scripts you desire.
 
 ## KismetParse.py
 
-Kismet Parse is a tool for extracting captured device information from a kismet database. The tool reads over the database and generates 5 sorted output files:
+Kismet Parse is a tool for extracting captured device information from a kismet database. The tool reads over the database and generates 7 sorted output files:
 
 - **BTEDR.txt** : A list of targetable Bluetooth Classic Addresses.
 - **BTLE** A list of targetable BTLE Addresses that have a specified name or manufacturer.
