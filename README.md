@@ -12,7 +12,8 @@ Kismet Parse is a tool for extracting captured device information from a kismet 
 - **BTEDR.txt** : A list of targetable Bluetooth Classic Addresses.
 - **BTLE** A list of targetable BTLE Addresses that have a specified name or manufacturer.
 - **CLIENT.txt**: A list of all the WiFi Client MAC addresses.
-- **SSID.txt**: A list of all SSIDs captured.
+- **ProbedSSID.txt**: A list of all SSIDs probed for by a client device.
+- **SSID.txt**: A list of all SSIDs prodcued from a beacon frame.
 - **AP.txt**: A list of all of the WiFi access point MAC addresses.
 - **SENSORS.txt**: A list of all of the RF sensor addresses.
 
