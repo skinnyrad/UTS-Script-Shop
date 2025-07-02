@@ -69,5 +69,5 @@ ubertooth-rx -z > <your_file>
 Then run the utility with:
 ```bash
 chmod +x sort_and_format.sh
-./sort_and_format.sh
+./sort_and_format.sh <your_file>
 ```
