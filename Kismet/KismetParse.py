@@ -133,6 +133,58 @@ def clean_intermediate_files():
     else:
         print("\033[33mNo intermediate files found to clean\033[0m")
 
+def delete_target_configuration():
+    """Delete target configuration file and include statement from Kismet configuration"""
+    config_dirs = ["/etc/kismet", "/usr/local/etc"]
+    processed_dirs = 0
+
+    for config_dir in config_dirs:
+        alerts_conf = os.path.join(config_dir, "kismet_alerts.conf")
+        target_conf = os.path.join(config_dir, "kismet_target_alerts.conf")
+        
+        # Verify config directory and alerts file exist
+        if os.path.isdir(config_dir) and os.path.isfile(alerts_conf):
+            include_line = f"opt_include={target_conf}"
+            
+            # Remove include directive if present
+            try:
+                with open(alerts_conf, "r") as f:
+                    content = f.read()
+                
+                if include_line in content:
+                    # Remove the include line and any extra newlines around it
+                    updated_content = content.replace(f"\n{include_line}\n", "\n")
+                    updated_content = updated_content.replace(f"{include_line}\n", "")
+                    updated_content = updated_content.replace(f"\n{include_line}", "")
+                    updated_content = updated_content.replace(include_line, "")
+                    
+                    with open(alerts_conf, "w") as f:
+                        f.write(updated_content)
+                    
+                    print(f"\033[32mRemoved include directive from {alerts_conf}\033[0m")
+                else:
+                    print(f"\033[33mInclude directive not found in {alerts_conf}\033[0m")
+            except Exception as e:
+                print(f"\033[31mError modifying {alerts_conf}: {e}\033[0m")
+            
+            # Remove target configuration file if it exists
+            if os.path.isfile(target_conf):
+                try:
+                    os.remove(target_conf)
+                    print(f"\033[32mDeleted target configuration file: {target_conf}\033[0m")
+                except Exception as e:
+                    print(f"\033[31mError deleting {target_conf}: {e}\033[0m")
+            else:
+                print(f"\033[33mTarget configuration file not found: {target_conf}\033[0m")
+            
+            processed_dirs += 1
+    
+    if processed_dirs == 0:
+        print("\033[31mError: No valid Kismet configuration directories found\033[0m")
+        sys.exit(1)
+    else:
+        print(f"\033[32mTarget configuration cleanup completed for {processed_dirs} directory(ies)\033[0m")
+
 def generate_target_alerts(btedr_macs, btle_macs, client_macs, ap_macs, sensor_macs, ssid_list):
     """Generate Kismet target alert configuration from extracted data"""
     config_dirs = ["/etc/kismet", "/usr/local/etc"]
@@ -261,6 +313,8 @@ def main():
                         help='Add targets from existing intermediate files (add_targets.sh functionality)')
     parser.add_argument('-c', '--clean', action='store_true', 
                         help='Clean up intermediate files')
+    parser.add_argument('-d', '--delete-targets', action='store_true',
+                        help='Delete target configuration file and include statement')
     parser.add_argument('-e', '--exclude-files', action='store_true', 
                         help='Generate target alerts directly without creating intermediate files')
     
@@ -269,8 +323,17 @@ def main():
     # Handle clean flag
     if args.clean:
         clean_intermediate_files()
-        if not args.database and not args.add_targets:
+        if not args.database and not args.add_targets and not args.delete_targets:
             return
+    
+    # Handle delete targets flag
+    if args.delete_targets:
+        if os.geteuid() != 0:
+            print("\033[31mPermission Error: Restarting with sudo...\033[0m")
+            subprocess.call(['sudo', sys.executable] + sys.argv)
+            sys.exit()
+        delete_target_configuration()
+        return
     
     # Handle add targets flag
     if args.add_targets:
@@ -284,11 +347,11 @@ def main():
     # Handle database processing
     if not args.database:
         parser.print_help()
-        print("\nError: Database file is required unless using -a or -c flags")
+        print("\nError: Database file is required unless using -a, -c, or -d flags")
         sys.exit(1)
     
-    # Check privileges for Kismet configuration
-    if os.geteuid() != 0:
+    # Check privileges only when needed (for -e flag that generates target alerts)
+    if args.exclude_files and os.geteuid() != 0:
         print("\033[31mPermission Error: Restarting with sudo...\033[0m")
         subprocess.call(['sudo', sys.executable] + sys.argv)
         sys.exit()

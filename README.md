@@ -30,17 +30,20 @@ sudo python KismetParse.py -e <your_capture.kismet>
 # Add targets from existing intermediate files (requires sudo)
 sudo python KismetParse.py -a
 
+# Delete target configuration and remove all alerts (requires sudo)
+sudo python KismetParse.py -d
+
 # Clean up intermediate files
 python KismetParse.py -c
-
-# Combine flags - clean files after processing
-python KismetParse.py -c <your_capture.kismet>
 ```
 
 ### Flags
+
+- **-h, --help**: Shows the help message
 - **-e, --exclude-files**: Generate target alerts directly without creating intermediate files
-- **-a, --add-targets**: Add targets from existing intermediate files (replaces add_targets.sh)
+- **-a, --add-targets**: Add targets from existing intermediate files
 - **-c, --clean**: Clean up intermediate files
+- **-d, --delete-targets**: Delete target configuration file and include statement (removes all alerts)
 
 ### Target Alert Generation
 By default, the script only generates intermediate files and does **not** create Kismet target alerts. To generate target alerts, you must use either:
@@ -49,8 +52,7 @@ By default, the script only generates intermediate files and does **not** create
 
 Both target alert generation modes require sudo privileges as they modify Kismet configuration files.
 
-### Note on Tool Consolidation
-The functionality of `add_targets.sh` and `KismetTargets.py` has been consolidated into the main `KismetParse.py` script. The old separate scripts are no longer needed - all functionality is now available through the unified interface with command-line flags.
+To remove all target alerts, use the **-d** flag which will delete the target configuration file and remove the include statement from the main configuration. This also requires sudo privileges.
 
 # Ubertooth
 
