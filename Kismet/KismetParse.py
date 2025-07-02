@@ -1,7 +1,11 @@
 import sqlite3
-from sqlite3 import Error
 import json
 import sys
+import os
+import subprocess
+import argparse
+import glob
+from sqlite3 import Error
 
 def create_connection(db_file):
     """Create a database connection to the SQLite database specified by db_file"""
@@ -35,8 +39,150 @@ def extract_devices_json(conn):
     except Error as e:
         print("Error querying 'devices' table:", e)
         return []
+
+def generate_intermediate_files(btedr_macs, btle_macs, client_macs, ap_macs, sensor_macs, advertised_ssids, probed_ssids):
+    """Generate intermediate files like KismetParse.py does"""
+    # Write files with unique entries
+    with open("BTEDR.txt", "w") as f:
+        f.write("\n".join(set(btedr_macs)))
+
+    with open("BTLE.txt", "w") as f:
+        f.write("\n".join(set(btle_macs)))
     
-def sort_devices_to_files(devices_list):
+    with open("CLIENT.txt", "w") as f:
+        f.write("\n".join(set(client_macs)))
+    
+    with open("SSID.txt", "w") as f:
+        f.write("\n".join(set(advertised_ssids)))
+
+    with open("ProbedSSID.txt", "w") as f:
+        f.write("\n".join(set(probed_ssids)))
+
+    with open("AP.txt", "w") as f:
+        f.write("\n".join(set(ap_macs))) 
+    
+    with open("SENSORS.txt", "w") as f:
+        f.write("\n".join(set(sensor_macs)))
+
+    print("Intermediate files created with extracted SSIDs and MAC addresses")
+
+def generate_target_alerts_from_files():
+    """Generate Kismet target alert configuration from existing files (add_targets.sh functionality)"""
+    config_dirs = ["/etc/kismet", "/usr/local/etc"]
+    mac_sources = ["AP.txt", "BTEDR.txt", "BTLE.txt", "CLIENT.txt", "SENSORS.txt"]
+    ssid_sources = ["SSID.txt", "ProbedSSID.txt"]
+    processed_dirs = 0
+
+    for config_dir in config_dirs:
+        alerts_conf = os.path.join(config_dir, "kismet_alerts.conf")
+        target_conf = os.path.join(config_dir, "kismet_target_alerts.conf")
+        
+        # Verify config directory and alerts file exist
+        if os.path.isdir(config_dir) and os.path.isfile(alerts_conf):
+            include_line = f"opt_include={target_conf}"
+            
+            # Add include directive if missing
+            with open(alerts_conf, "r+") as f:
+                content = f.read()
+                if include_line not in content:
+                    f.write(f"\n{include_line}\n")
+            
+            # Create fresh target file
+            with open(target_conf, "w") as f:
+                # Process SSIDs from all sources
+                for ssid_file in ssid_sources:
+                    if os.path.isfile(ssid_file):
+                        with open(ssid_file, "r") as sf:
+                            for line in sf:
+                                ssid = line.strip()
+                                if ssid:
+                                    f.write(f'ssidcanary="{ssid}":ssid="{ssid}"\n')
+                    else:
+                        print(f"\033[33mWarning: {ssid_file} not found - skipping SSID alerts\033[0m")
+                
+                # Process MAC addresses from all sources
+                for source in mac_sources:
+                    if os.path.isfile(source):
+                        with open(source, "r") as sf:
+                            for line in sf:
+                                mac = line.strip().replace('-', '')
+                                if mac:
+                                    f.write(f'devicefound={mac}\n')
+                    else:
+                        print(f"\033[33mWarning: {source} not found - skipping\033[0m")
+            
+            print(f"\033[32mConfiguration updated in {config_dir}\033[0m")
+            processed_dirs += 1
+    
+    if processed_dirs == 0:
+        print("\033[31mError: No valid Kismet configuration directories found\033[0m")
+        sys.exit(1)
+
+def clean_intermediate_files():
+    """Clean up intermediate files"""
+    files_to_clean = ["BTEDR.txt", "BTLE.txt", "CLIENT.txt", "SSID.txt", "ProbedSSID.txt", "AP.txt", "SENSORS.txt"]
+    cleaned_files = []
+    
+    for file_name in files_to_clean:
+        if os.path.exists(file_name):
+            os.remove(file_name)
+            cleaned_files.append(file_name)
+    
+    if cleaned_files:
+        print(f"\033[32mCleaned up files: {', '.join(cleaned_files)}\033[0m")
+    else:
+        print("\033[33mNo intermediate files found to clean\033[0m")
+
+def generate_target_alerts(btedr_macs, btle_macs, client_macs, ap_macs, sensor_macs, ssid_list):
+    """Generate Kismet target alert configuration from extracted data"""
+    config_dirs = ["/etc/kismet", "/usr/local/etc"]
+    target_config = "kismet_target_alerts.conf"
+    processed = False
+
+    for config_dir in config_dirs:
+        alerts_conf = os.path.join(config_dir, "kismet_alerts.conf")
+        target_path = os.path.join(config_dir, target_config)
+        
+        if os.path.isdir(config_dir) and os.path.isfile(alerts_conf):
+            include_line = f"opt_include={target_path}"
+            
+            # Add include directive if missing
+            with open(alerts_conf, "r+") as f:
+                content = f.read()
+                if include_line not in content:
+                    f.write(f"\n{include_line}\n")
+            
+            # Generate target configuration
+            with open(target_path, "w") as f:
+                # Write SSID alerts
+                for ssid in set(ssid_list):
+                    if ssid:
+                        f.write(f'ssidcanary="{ssid}":ssid="{ssid}"\n')
+                
+                # Write MAC alerts
+                mac_sources = {
+                    'btedr': btedr_macs,
+                    'btle': btle_macs,
+                    'client': client_macs,
+                    'ap': ap_macs,
+                    'sensor': sensor_macs
+                }
+                
+                for mac_type, macs in mac_sources.items():
+                    for mac in set(macs):
+                        cleaned_mac = mac.strip().replace('-', '')
+                        if cleaned_mac:
+                            f.write(f'devicefound={cleaned_mac}\n')
+            
+            print(f"\033[32mConfiguration updated in {config_dir}\033[0m")
+            processed = True
+            break
+    
+    if not processed:
+        print("\033[31mError: No valid Kismet configuration directories found\033[0m")
+        sys.exit(1)
+
+def sort_devices_to_files(devices_list, generate_files=True, generate_targets=False):
     btedr_macs = []
     btle_macs = []
     client_macs = []
@@ -98,51 +244,71 @@ def sort_devices_to_files(devices_list):
         elif dev_type == "Sensor" and mac:
             sensor_macs.append(mac)
 
-    # Write files with unique entries
-    with open("BTEDR.txt", "w") as f:
-        f.write("\n".join(set(btedr_macs)))
-
-    with open("BTLE.txt", "w") as f:
-        f.write("\n".join(set(btle_macs)))
+    if generate_files:
+        # Generate intermediate files only
+        generate_intermediate_files(btedr_macs, btle_macs, client_macs, ap_macs, sensor_macs, advertised_ssids, probed_ssids)
     
-    with open("CLIENT.txt", "w") as f:
-        f.write("\n".join(set(client_macs)))
-    
-    with open("SSID.txt", "w") as f:
-        f.write("\n".join(set(advertised_ssids)))
+    if generate_targets:
+        # Generate alerts directly without intermediate files (when -e flag is used)
+        generate_target_alerts(btedr_macs, btle_macs, client_macs, ap_macs, sensor_macs, probed_ssids)
 
-    with open("ProbedSSID.txt", "w") as f:
-        f.write("\n".join(set(probed_ssids)))
-
-    with open("AP.txt", "w") as f:
-        f.write("\n".join(set(ap_macs))) 
-    
-    with open("SENSORS.txt", "w") as f:
-        f.write("\n".join(set(sensor_macs)))
-
-    print("Files created with extracted SSIDs and MAC addresses")
+    return btedr_macs, btle_macs, client_macs, ap_macs, sensor_macs, advertised_ssids, probed_ssids
 
 def main():
-    if len(sys.argv) != 2:
-        print("Usage: python KismetParse.py <path_to_kismet_file>")
+    parser = argparse.ArgumentParser(description='Kismet device parser and target alert generator')
+    parser.add_argument('database', nargs='?', help='Path to the Kismet database file')
+    parser.add_argument('-a', '--add-targets', action='store_true', 
+                        help='Add targets from existing intermediate files (add_targets.sh functionality)')
+    parser.add_argument('-c', '--clean', action='store_true', 
+                        help='Clean up intermediate files')
+    parser.add_argument('-e', '--exclude-files', action='store_true', 
+                        help='Generate target alerts directly without creating intermediate files')
+    
+    args = parser.parse_args()
+    
+    # Handle clean flag
+    if args.clean:
+        clean_intermediate_files()
+        if not args.database and not args.add_targets:
+            return
+    
+    # Handle add targets flag
+    if args.add_targets:
+        if os.geteuid() != 0:
+            print("\033[31mPermission Error: Restarting with sudo...\033[0m")
+            subprocess.call(['sudo', sys.executable] + sys.argv)
+            sys.exit()
+        generate_target_alerts_from_files()
+        return
+    
+    # Handle database processing
+    if not args.database:
+        parser.print_help()
+        print("\nError: Database file is required unless using -a or -c flags")
         sys.exit(1)
     
-    database = sys.argv[1]  # Get the Kismet database file from command line argument
+    # Check privileges for Kismet configuration
+    if os.geteuid() != 0:
+        print("\033[31mPermission Error: Restarting with sudo...\033[0m")
+        subprocess.call(['sudo', sys.executable] + sys.argv)
+        sys.exit()
     
-    # Create a database connection
+    database = args.database
+    
     conn = create_connection(database)
-    
     if conn is not None:
         devices_list = extract_devices_json(conn)
         conn.close()
-
-        # Print the first device JSON as an example
+        
         if devices_list:
-            sort_devices_to_files(devices_list)
+            # Determine whether to generate intermediate files and targets
+            generate_files = not args.exclude_files
+            generate_targets = args.exclude_files  # Only generate targets when -e flag is used
+            sort_devices_to_files(devices_list, generate_files, generate_targets)
         else:
-            print("No devices found or error occurred.")
+            print("No devices found")
     else:
-        print("Error! Cannot create the database connection.")
+        print("Database connection failed")
 
 if __name__ == '__main__':
     main()
