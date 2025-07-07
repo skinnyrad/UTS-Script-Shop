@@ -56,9 +56,9 @@ To remove all target alerts, use the **-d** flag which will delete the target co
 
 # Ubertooth
 
-## sort_and_format.sh
+## ubersort.sh
 
-Sort and Format is a tool for sorting the output of the ubertooths survey mode. The script will create two files from the input, appended with _LAP and _UAP respectively. The LAP file will simply be all the LAPs found by the ubertooth excluding those with UAPs. The UAP file will contain all of the UAP/LAP pairs, filling the NAP with 00:00.
+UberSort is a tool for sorting the output of the ubertooths survey mode. The script will create two files from the input, appended with _LAP and _UAP respectively. The LAP file will simply be all the LAPs found by the ubertooth excluding those with UAPs. The UAP file will contain all of the UAP/LAP pairs, filling the NAP with 00:00.
 
 
 ### Usage
@@ -68,6 +68,6 @@ ubertooth-rx -z > <your_file>
 ```
 Then run the utility with:
 ```bash
-chmod +x sort_and_format.sh
-./sort_and_format.sh <your_file>
+chmod +x ubersort.sh
+./ubersort.sh <your_file>
 ```
