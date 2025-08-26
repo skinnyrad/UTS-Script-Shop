@@ -4,7 +4,6 @@ import sys
 import os
 import subprocess
 import argparse
-import glob
 from sqlite3 import Error
 
 def create_connection(db_file):
@@ -306,6 +305,38 @@ def sort_devices_to_files(devices_list, generate_files=True, generate_targets=Fa
 
     return btedr_macs, btle_macs, client_macs, ap_macs, sensor_macs, advertised_ssids, probed_ssids
 
+def subtract_baseline(new_data, baseline_data):
+    """
+    Subtract baseline MACs/SSIDs/etc. from new data
+    Returns the filtered version of (btedr, btle, client, ap, sensor, adv_ssids, probed_ssids)
+    """
+    new_btedr, new_btle, new_client, new_ap, new_sensor, new_adv_ssids, new_probed_ssids = new_data
+    base_btedr, base_btle, base_client, base_ap, base_sensor, base_adv_ssids, base_probed_ssids = baseline_data
+
+    return (
+        list(set(new_btedr) - set(base_btedr)),
+        list(set(new_btle) - set(base_btle)),
+        list(set(new_client) - set(base_client)),
+        list(set(new_ap) - set(base_ap)),
+        list(set(new_sensor) - set(base_sensor)),
+        list(set(new_adv_ssids) - set(base_adv_ssids)),
+        list(set(new_probed_ssids) - set(base_probed_ssids))
+    )
+
+
+def load_and_sort_devices(db_file):
+    """Helper function: connect to DB, extract device JSON, sort into categories"""
+    conn = create_connection(db_file)
+    if conn is None:
+        print(f"Database connection failed: {db_file}")
+        return None
+    devices = extract_devices_json(conn)
+    conn.close()
+    if not devices:
+        return None
+    return sort_devices_to_files(devices, generate_files=False, generate_targets=False)
+    
+
 def main():
     parser = argparse.ArgumentParser(description='Kismet device parser and target alert generator')
     parser.add_argument('database', nargs='?', help='Path to the Kismet database file')
@@ -317,16 +348,16 @@ def main():
                         help='Delete target configuration file and include statement')
     parser.add_argument('-e', '--exclude-files', action='store_true', 
                         help='Generate target alerts directly without creating intermediate files')
-    
+    parser.add_argument('-b', '--baseline', metavar="BASELINE_DB",
+                        help='Path to baseline database file (devices in baseline will be excluded)')
+
     args = parser.parse_args()
     
-    # Handle clean flag
     if args.clean:
         clean_intermediate_files()
         if not args.database and not args.add_targets and not args.delete_targets:
             return
     
-    # Handle delete targets flag
     if args.delete_targets:
         if os.geteuid() != 0:
             print("\033[31mPermission Error: Restarting with sudo...\033[0m")
@@ -335,7 +366,6 @@ def main():
         delete_target_configuration()
         return
     
-    # Handle add targets flag
     if args.add_targets:
         if os.geteuid() != 0:
             print("\033[31mPermission Error: Restarting with sudo...\033[0m")
@@ -344,34 +374,40 @@ def main():
         generate_target_alerts_from_files()
         return
     
-    # Handle database processing
     if not args.database:
         parser.print_help()
         print("\nError: Database file is required unless using -a, -c, or -d flags")
         sys.exit(1)
-    
-    # Check privileges only when needed (for -e flag that generates target alerts)
+
     if args.exclude_files and os.geteuid() != 0:
         print("\033[31mPermission Error: Restarting with sudo...\033[0m")
         subprocess.call(['sudo', sys.executable] + sys.argv)
         sys.exit()
     
-    database = args.database
-    
-    conn = create_connection(database)
-    if conn is not None:
-        devices_list = extract_devices_json(conn)
-        conn.close()
-        
-        if devices_list:
-            # Determine whether to generate intermediate files and targets
-            generate_files = not args.exclude_files
-            generate_targets = args.exclude_files  # Only generate targets when -e flag is used
-            sort_devices_to_files(devices_list, generate_files, generate_targets)
+    # Load new database devices
+    new_data = load_and_sort_devices(args.database)
+    if new_data is None:
+        print("No devices found in new database")
+        sys.exit(1)
+
+    # Load and subtract baseline if requested
+    if args.baseline:
+        base_data = load_and_sort_devices(args.baseline)
+        if base_data is not None:
+            print(f"Applying baseline filter using {args.baseline}")
+            new_data = subtract_baseline(new_data, base_data)
         else:
-            print("No devices found")
+            print("\033[33mWarning: Baseline database empty or invalid\033[0m")
+
+    btedr_macs, btle_macs, client_macs, ap_macs, sensor_macs, advertised_ssids, probed_ssids = new_data
+
+    # Write results
+    if not args.exclude_files:
+        # Default behavior: generate intermediate text files
+        generate_intermediate_files(btedr_macs, btle_macs, client_macs, ap_macs, sensor_macs, advertised_ssids, probed_ssids)
     else:
-        print("Database connection failed")
+        # Directly generate alerts without intermediate files
+        generate_target_alerts(btedr_macs, btle_macs, client_macs, ap_macs, sensor_macs, probed_ssids)
 
 if __name__ == '__main__':
     main()
