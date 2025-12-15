@@ -4,6 +4,7 @@ import sys
 import os
 import subprocess
 import argparse
+import shutil
 from sqlite3 import Error
 
 
@@ -307,7 +308,9 @@ def generate_target_alerts(
         sys.exit(1)
 
 
-def sort_devices_to_files(devices_list, generate_files=True, generate_targets=False):
+def sort_devices_to_files(
+    devices_list, generate_files=True, generate_targets=False, track_keys=False
+):
     btedr_macs = []
     btle_macs = []
     client_macs = []
@@ -315,15 +318,19 @@ def sort_devices_to_files(devices_list, generate_files=True, generate_targets=Fa
     probed_ssids = []
     ap_macs = []
     sensor_macs = []
+    extracted_keys = []  # Track device keys that pass extraction criteria
 
     for device in devices_list:
         dev_type = device.get("kismet.device.base.type")
         mac = device.get("kismet.device.base.macaddr")
+        device_key = device.get("kismet.device.base.key")
+        device_extracted = False
 
         # Handle Bluetooth devices
         if dev_type == "BR/EDR":
             if mac:
                 btedr_macs.append(mac)
+                device_extracted = True
 
         # Handle Bluetooth Low Energy devices
         if dev_type == "BTLE":
@@ -333,6 +340,7 @@ def sort_devices_to_files(devices_list, generate_files=True, generate_targets=Fa
                 or device.get("kismet.device.base.manuf") != "Unknown"
             ):
                 btle_macs.append(mac)
+                device_extracted = True
 
         # Handle Wi-Fi Clients and their probed SSIDs
         elif dev_type in [
@@ -343,6 +351,7 @@ def sort_devices_to_files(devices_list, generate_files=True, generate_targets=Fa
         ]:
             if mac and device.get("kismet.device.base.manuf") != "Unknown":
                 client_macs.append(mac)
+                device_extracted = True
 
             # Extract probed SSIDs
             try:
@@ -362,6 +371,7 @@ def sort_devices_to_files(devices_list, generate_files=True, generate_targets=Fa
         elif dev_type in ["Wi-Fi AP", "Wi-Fi WDS AP", "WiFi WDS"]:
             if mac:
                 ap_macs.append(mac)
+                device_extracted = True
 
             # Extract advertised SSIDs
             try:
@@ -380,6 +390,11 @@ def sort_devices_to_files(devices_list, generate_files=True, generate_targets=Fa
         # Handle Sensors
         elif dev_type == "Sensor" and mac:
             sensor_macs.append(mac)
+            device_extracted = True
+
+        # Track extracted device keys
+        if track_keys and device_extracted and device_key:
+            extracted_keys.append(device_key)
 
     if generate_files:
         # Generate intermediate files only
@@ -399,6 +414,17 @@ def sort_devices_to_files(devices_list, generate_files=True, generate_targets=Fa
             btedr_macs, btle_macs, client_macs, ap_macs, sensor_macs, probed_ssids
         )
 
+    if track_keys:
+        return (
+            btedr_macs,
+            btle_macs,
+            client_macs,
+            ap_macs,
+            sensor_macs,
+            advertised_ssids,
+            probed_ssids,
+            extracted_keys,
+        )
     return (
         btedr_macs,
         btle_macs,
@@ -480,7 +506,7 @@ def intersect_baseline(new_data, intersect_data):
     )
 
 
-def load_and_sort_devices(db_file):
+def load_and_sort_devices(db_file, track_keys=False):
     """Helper function: connect to DB, extract device JSON, sort into categories"""
     conn = create_connection(db_file)
     if conn is None:
@@ -490,7 +516,9 @@ def load_and_sort_devices(db_file):
     conn.close()
     if not devices:
         return None
-    return sort_devices_to_files(devices, generate_files=False, generate_targets=False)
+    return sort_devices_to_files(
+        devices, generate_files=False, generate_targets=False, track_keys=track_keys
+    )
 
 
 def main():
@@ -530,6 +558,12 @@ def main():
         "--intersect",
         metavar="INTERSECT_DB",
         help="Path to intersect database file (only devices common to both databases will be included)",
+    )
+    parser.add_argument(
+        "-k",
+        "--kismet-cleaned",
+        metavar="CLEAN_DB_NAME",
+        help="Generate a cleaned Kismet database with only extracted devices",
     )
 
     args = parser.parse_args()
@@ -571,11 +605,19 @@ def main():
         subprocess.call(["sudo", sys.executable] + sys.argv)
         sys.exit()
 
-    # Load new database devices
-    new_data = load_and_sort_devices(args.database)
+    # Load new database devices (track keys if we need to generate cleaned database)
+    new_data = load_and_sort_devices(
+        args.database, track_keys=bool(args.kismet_cleaned)
+    )
     if new_data is None:
         print("No devices found in new database")
         sys.exit(1)
+
+    # Extract keys if tracking
+    extracted_keys = None
+    if args.kismet_cleaned:
+        extracted_keys = new_data[-1]
+        new_data = new_data[:-1]  # Remove keys from tuple for further processing
 
     # Load and subtract baseline if requested
     if args.baseline:
@@ -622,6 +664,59 @@ def main():
         generate_target_alerts(
             btedr_macs, btle_macs, client_macs, ap_macs, sensor_macs, probed_ssids
         )
+
+    # Generate cleaned Kismet database if requested
+    if args.kismet_cleaned and extracted_keys is not None:
+        generate_cleaned_database(args.database, args.kismet_cleaned, extracted_keys)
+
+
+def generate_cleaned_database(source_db, dest_db, extracted_keys):
+    """Copy database and remove devices that weren't extracted"""
+    # Copy the original database
+    try:
+        shutil.copy2(source_db, dest_db)
+        print(f"Copied database to {dest_db}")
+    except Exception as e:
+        print(f"\033[31mError copying database: {e}\033[0m")
+        sys.exit(1)
+
+    # Connect to the copied database and remove non-extracted devices
+    try:
+        conn = sqlite3.connect(dest_db)
+        cursor = conn.cursor()
+
+        # Get total device count before deletion
+        cursor.execute("SELECT COUNT(*) FROM devices")
+        total_before = cursor.fetchone()[0]
+
+        if extracted_keys:
+            # Create placeholders for the IN clause
+            placeholders = ",".join(["?" for _ in extracted_keys])
+            # Delete devices whose keys are NOT in the extracted_keys list
+            cursor.execute(
+                f"DELETE FROM devices WHERE devkey NOT IN ({placeholders})",
+                extracted_keys,
+            )
+        else:
+            # If no devices were extracted, delete all devices
+            cursor.execute("DELETE FROM devices")
+
+        conn.commit()
+
+        # Get device count after deletion
+        cursor.execute("SELECT COUNT(*) FROM devices")
+        total_after = cursor.fetchone()[0]
+
+        deleted_count = total_before - total_after
+        print(f"\033[32mCleaned database created: {dest_db}\033[0m")
+        print(
+            f"  Removed {deleted_count} devices, kept {total_after} extracted devices"
+        )
+
+        conn.close()
+    except Error as e:
+        print(f"\033[31mError cleaning database: {e}\033[0m")
+        sys.exit(1)
 
 
 if __name__ == "__main__":
