@@ -9,6 +9,9 @@ from sqlite3 import Error
 
 def create_connection(db_file):
     """Create a database connection to the SQLite database specified by db_file"""
+    if not os.path.isfile(db_file):
+        print(f"\033[31mError: Database file not found: {db_file}\033[0m")
+        sys.exit(1)
     conn = None
     try:
         conn = sqlite3.connect(db_file)
@@ -94,6 +97,13 @@ def generate_target_alerts_from_files():
         if os.path.isdir(config_dir) and os.path.isfile(alerts_conf):
             include_line = f"opt_include={target_conf}"
 
+            # Verify alerts config file is readable
+            if not os.access(alerts_conf, os.R_OK):
+                print(
+                    f"\033[31mError: Cannot read alerts configuration file: {alerts_conf}\033[0m"
+                )
+                sys.exit(1)
+
             # Add include directive if missing
             with open(alerts_conf, "r+") as f:
                 content = f.read()
@@ -105,6 +115,11 @@ def generate_target_alerts_from_files():
                 # Process SSIDs from all sources
                 for ssid_file in ssid_sources:
                     if os.path.isfile(ssid_file):
+                        if not os.access(ssid_file, os.R_OK):
+                            print(
+                                f"\033[31mError: Cannot read SSID file: {ssid_file}\033[0m"
+                            )
+                            sys.exit(1)
                         with open(ssid_file, "r") as sf:
                             for line in sf:
                                 ssid = line.strip()
@@ -118,6 +133,11 @@ def generate_target_alerts_from_files():
                 # Process MAC addresses from all sources
                 for source in mac_sources:
                     if os.path.isfile(source):
+                        if not os.access(source, os.R_OK):
+                            print(
+                                f"\033[31mError: Cannot read MAC source file: {source}\033[0m"
+                            )
+                            sys.exit(1)
                         with open(source, "r") as sf:
                             for line in sf:
                                 mac = line.strip().replace("-", "")
@@ -170,6 +190,13 @@ def delete_target_configuration():
         # Verify config directory and alerts file exist
         if os.path.isdir(config_dir) and os.path.isfile(alerts_conf):
             include_line = f"opt_include={target_conf}"
+
+            # Verify alerts config file is readable
+            if not os.access(alerts_conf, os.R_OK):
+                print(
+                    f"\033[31mError: Cannot read alerts configuration file: {alerts_conf}\033[0m"
+                )
+                sys.exit(1)
 
             # Remove include directive if present
             try:
@@ -234,6 +261,13 @@ def generate_target_alerts(
         target_path = os.path.join(config_dir, target_config)
 
         if os.path.isdir(config_dir) and os.path.isfile(alerts_conf):
+            # Verify alerts config file is readable
+            if not os.access(alerts_conf, os.R_OK):
+                print(
+                    f"\033[31mError: Cannot read alerts configuration file: {alerts_conf}\033[0m"
+                )
+                sys.exit(1)
+
             include_line = f"opt_include={target_path}"
 
             # Add include directive if missing
