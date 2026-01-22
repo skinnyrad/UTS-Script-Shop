@@ -27,7 +27,8 @@ python KismetParse.py <target_capture.kismet>
 # Generates Kismet alerts populated with targetable assests with producing output text files. (requires sudo)
 sudo python KismetParse.py -e <target_capture.kismet>
 
-# Add targets from existing intermediate files. All targets contain within files are used to create Kismet alerts. (requires sudo)
+# Add targets from existing intermediate files. All targets contain within files are used to create Kismet
+# alerts. (requires sudo)
 sudo python KismetParse.py -a
 
 # Delete target Kismet configuration and remove all alerts (requires sudo)
@@ -36,13 +37,16 @@ sudo python KismetParse.py -d
 # Clean up intermediate files by deleting them all
 python KismetParse.py -c
 
-# Use a baseline Kismet file to prevent anything captured in the baseline file from being tagged an a target in the Kismet file under scrutiny.
+# Use a baseline Kismet file to prevent anything captured in the baseline file from being tagged an a target in
+# the Kismet file under scrutiny.
 python -b <baseline_capture.kismet> <target_capture.kismet>
 
-# Use a Kismet file to specify that only devices found in common with another Kismet file should be considered targetable.
+# Use a Kismet file to specify that only devices found in common with another Kismet file should be considered
+# targetable.
 python -i <intersect_capture.kismet> <target_capture.kismet>
 
-# Create a clean kismet databaes file that only contains those devices that are considered targetable. Targetable assests must have already been generated.
+# Create a clean kismet databaes file that only contains those devices that are considered targetable.
+# Targetable assests must have already been generated.
 python -k <new_kismet_file.kismet>
 ```
 
