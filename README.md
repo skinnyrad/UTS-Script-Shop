@@ -7,34 +7,43 @@ The Script Shop™ is your one stop shop to find all the scripts you desire.
 
 ## KismetParse.py
 
-Kismet Parse is a comprehensive tool for extracting captured device information from a Kismet database and managing target alerts. The tool can generate intermediate files and/or directly configure Kismet target alerts with various options.
+Kismet Parse is a comprehensive tool for extracting, analyzing, and managing captured device information from a Kismet database and managing target alerts. The tool can generate intermediate files and/or directly configure Kismet target alerts with various options.
 
-The tool generates up to 7 sorted output files:
+When executed in its most basic mode, the tool generates up to 7 sorted output files:
 
 - **BTEDR.txt**: A list of targetable Bluetooth Classic Addresses.
-- **BTLE.txt**: A list of targetable BTLE Addresses that have a specified name or manufacturer.
+- **BTLE.txt**: A list of targetable, nonrandom BTLE Addresses that have a specified name or manufacturer.
 - **CLIENT.txt**: A list of all the WiFi Client MAC addresses that are not random in nature.
 - **ProbedSSID.txt**: A list of all SSIDs probed for by a client device.
-- **SSID.txt**: A list of all SSIDs produced from a beacon frame.
+- **SSID.txt**: A list of all SSIDs produced from beacon frames.
 - **AP.txt**: A list of all of the WiFi access point MAC addresses.
 - **SENSORS.txt**: A list of all of the RF sensor addresses.
 
 ### Usage
 ```bash
 # Basic usage - generates intermediate files only (no target alerts)
-python KismetParse.py <your_capture.kismet>
+python KismetParse.py <target_capture.kismet>
 
-# Generate target alerts directly without intermediate files (requires sudo)
-sudo python KismetParse.py -e <your_capture.kismet>
+# Generates Kismet alerts populated with targetable assests with producing output text files. (requires sudo)
+sudo python KismetParse.py -e <target_capture.kismet>
 
-# Add targets from existing intermediate files (requires sudo)
+# Add targets from existing intermediate files. All targets contain within files are used to create Kismet alerts. (requires sudo)
 sudo python KismetParse.py -a
 
-# Delete target configuration and remove all alerts (requires sudo)
+# Delete target Kismet configuration and remove all alerts (requires sudo)
 sudo python KismetParse.py -d
 
-# Clean up intermediate files
+# Clean up intermediate files by deleting them all
 python KismetParse.py -c
+
+# Use a baseline Kismet file to prevent anything captured in the baseline file from being tagged an a target in the Kismet file under scrutiny.
+python -b <baseline_capture.kismet> <target_capture.kismet>
+
+# Use a Kismet file to specify that only devices found in common with another Kismet file should be considered targetable.
+python -i <intersect_capture.kismet> <target_capture.kismet>
+
+# Create a clean kismet databaes file that only contains those devices that are considered targetable. Targetable assests must have already been generated.
+python -k <new_kismet_file.kismet>
 ```
 
 ### Flags
@@ -44,6 +53,9 @@ python KismetParse.py -c
 - **-a, --add-targets**: Add targets from existing intermediate files
 - **-c, --clean**: Clean up intermediate files
 - **-d, --delete-targets**: Delete target configuration file and include statement (removes all alerts)
+- **-b BASELINE_DB, --baseline BASELINE_DB**: Specify a baseline file to remove any devices as targetable assets produces from the Kismet file under scrutiny. If the device exists in the baseline kismet file and the targeted kismet file, it is removed as a targetable asset in the intermediate target files.
+- **-i INTERSECT_DB, --intersect INTERSECT_DB**: Specify a Kismet file, the intersect file, so that only devices that are in common with the Kismet file under scrutiny are output to the intermediate target files.
+- **-k CLEAN_DB_NAME, --kismet-cleaned CLEAN_DB_NAME**: Creates a new kismet database file that only includes the extracted, targetable devices.
 
 ### Target Alert Generation
 By default, the script only generates intermediate files and does **not** create Kismet target alerts. To generate target alerts, you must use either:
